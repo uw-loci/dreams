@@ -14,7 +14,10 @@ _microscope = importlib.import_module("dreams.microscope")
 RealMicroscope = _microscope.RealMicroscope
 
 scope = RealMicroscope()
-mcp = FastMCP("Microscope MCP (Real)", host="127.0.0.1", port=4201)
+HOST = "127.0.0.1"
+PORT = 4201
+
+mcp = FastMCP("Microscope MCP (Real)", host=HOST, port=PORT)
 
 
 # --- Tools ---
@@ -87,7 +90,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         mcp.streamable_http_app(),
-        host="127.0.0.1",
-        port=4201,
+        host=HOST,
+        port=PORT,
         timeout_graceful_shutdown=0,
     )

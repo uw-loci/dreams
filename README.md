@@ -1,19 +1,60 @@
-🔬 The Revolution of Smart Microscopy and Data driven Event loops
-Data-driven approaches, integrating machine learning (ML) and adaptive feedback, are fundamentally reshaping fluorescence and brightfield microscopy for pathology and live-cell imaging.
+# 🔬 DReAMS
 
-Smart microscopes enhance image acquisition through techniques like content-aware illumination, ML-based denoising, and adaptive optics. Crucially, they dynamically control imaging parameters—such as focus, field of view, and frame rate—in real-time response to the sample.
+**Data-Reactive Acquisition and Microscope Steering** — bringing AI to the microscope.
 
-This capability allows for real-time decision-making. For instance, event-driven microscopy can automatically capture fleeting biological events by instantly adjusting imaging speed. AI-guided pathology microscopes intelligently scan slides by prioritizing and focusing on relevant tumor regions.
+Smart microscopes adapt acquisition to the sample in real time: content-aware
+illumination, ML-based denoising, adaptive optics, and event-driven capture that
+adjusts focus, field of view, and frame rate on the fly. DReAMS exposes a real
+microscope to an LLM agent over MCP, so the agent can observe, decide, and steer
+the acquisition itself.
 
-Hence we try to make the microscope smarter, by bringing AI to the microscope:
-Data-Reactive Acquisition and Microscope Steering, aka DReAMS
+## Requirements
 
-🔬 DReAMS: Data-Reactive Acquisition and Microscope Steering
+- Python 3.13 and [uv](https://docs.astral.sh/uv/)
+- Micro-Manager 2.0 running with the ZMQ server enabled (default port 4827);
+  `pycromanager` bridges Python to its Java core
 
+## Setup
 
-operation-notes
-start the http server
-    - python .\servers\mcp_http_real\server.py
-    probably on :4201
-go to copilot and add (not local) mcp shows as tag1 http note
-once configured, agent can talk to mcp to get from microscope.
+```
+uv sync
+```
+
+## Run
+
+```
+uv run servers/microscope/server.py
+```
+
+Serves streamable-HTTP MCP at `http://127.0.0.1:4201/mcp`.
+
+## Connect an agent
+
+Point any MCP client at that URL. A GitHub Copilot CLI config is included:
+
+```
+cd workers/copilot
+./copilot-with-mcp.ps1
+```
+
+## MCP surface
+
+| Kind | Name | Signature |
+|---|---|---|
+| tool | `snap_image` | `() -> dict` |
+| tool | `move_stage` | `(x, y, z: float) -> dict` — µm |
+| tool | `get_stage_position` | `() -> dict` |
+| tool | `wait` | `(seconds: float) -> dict` |
+| resource | `microscope://latest_image` | PNG bytes |
+| prompt | `tile_scan_xy` | `(x_positions, y_positions, z, delay_seconds=1.0)` |
+
+`snap_image` writes a PNG to the system temp directory and returns the path in
+its JSON result — image data never crosses the MCP envelope.
+
+## Layout
+
+```
+dreams/microscope/   backend: RealMicroscope (pycromanager) + PNG helpers
+servers/microscope/  MCP server (streamable HTTP, :4201)
+workers/copilot/     Copilot CLI client config
+```
