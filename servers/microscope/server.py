@@ -1,11 +1,19 @@
 import argparse
+import contextlib
+import os
+import threading
+import warnings
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from rich.console import Console
+from rich.markup import escape
+from rich.panel import Panel
 
 HOST = "127.0.0.1"
 PORT = 4201
 
+console = Console(stderr=True)
 _scope = None
 
 
@@ -18,7 +26,10 @@ def get_scope():
     global _scope
     if _scope is None:
         try:
-            from dreams.microscope import RealMicroscope
+            with warnings.catch_warnings():
+                # mmpycorex has an unescaped Windows path in a docstring.
+                warnings.simplefilter("ignore", SyntaxWarning)
+                from dreams.microscope import RealMicroscope
         except ImportError as exc:
             raise ScopeUnavailableError(
                 "The 'dreams' package is not importable. Install the project "
@@ -96,6 +107,24 @@ Do not skip any positions. Report progress after each tile.
 """
 
 
+@contextlib.contextmanager
+def _quiet_bridge_threads():
+    """Swallow pycromanager socket-thread tracebacks while probing."""
+    previous = threading.excepthook
+
+    def hook(args):
+        thread = getattr(args, "thread", None)
+        if thread is not None and thread.name.startswith("BridgeSocketThread"):
+            return
+        previous(args)
+
+    threading.excepthook = hook
+    try:
+        yield
+    finally:
+        threading.excepthook = previous
+
+
 def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``start`` console script."""
     parser = argparse.ArgumentParser(prog="start", description="Start a DReAMS server.")
@@ -117,15 +146,26 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.no_scope:
-        print("Starting without a microscope - tools will fail when called.")
+        console.print(
+            "[yellow]Starting without a microscope[/] - tools will fail when called."
+        )
     else:
         try:
-            get_scope()
+            with _quiet_bridge_threads():
+                get_scope()
         except Exception as exc:
-            raise SystemExit(
-                f"Cannot reach the microscope: {exc}\n"
-                "Re-run with --no-scope to start the server anyway."
-            ) from exc
+            console.print(
+                Panel(
+                    f"{escape(str(exc))}\n\n"
+                    "Start Micro-Manager with [cyan]Tools -> Options -> Run server on port 4827[/]\n"
+                    "enabled, or re-run with [cyan]--no-scope[/] to start the server anyway.",
+                    title="[bold red]Cannot reach the microscope[/]",
+                    border_style="red",
+                )
+            )
+            # pycromanager leaves daemon socket threads behind on a failed
+            # connect; a normal exit deadlocks on them during finalization.
+            os._exit(1)
 
     uvicorn.run(
         mcp.streamable_http_app(),
