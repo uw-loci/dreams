@@ -1,21 +1,32 @@
-import importlib
-import sys
-from pathlib import Path
+import argparse
 
+import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-for parent in Path(__file__).resolve().parents:
-    if (parent / "dreams").is_dir() and (parent / "pyproject.toml").is_file():
-        if str(parent) not in sys.path:
-            sys.path.insert(0, str(parent))
-        break
-
-_microscope = importlib.import_module("dreams.microscope")
-RealMicroscope = _microscope.RealMicroscope
-
-scope = RealMicroscope()
 HOST = "127.0.0.1"
 PORT = 4201
+
+_scope = None
+
+
+class ScopeUnavailableError(RuntimeError):
+    """The microscope backend could not be loaded."""
+
+
+def get_scope():
+    """Return the microscope, connecting on first use."""
+    global _scope
+    if _scope is None:
+        try:
+            from dreams.microscope import RealMicroscope
+        except ImportError as exc:
+            raise ScopeUnavailableError(
+                "The 'dreams' package is not importable. Install the project "
+                "with `uv sync` and run the server from the project root."
+            ) from exc
+        _scope = RealMicroscope()
+    return _scope
+
 
 mcp = FastMCP("Microscope MCP (Real)", host=HOST, port=PORT)
 
@@ -26,25 +37,25 @@ mcp = FastMCP("Microscope MCP (Real)", host=HOST, port=PORT)
 @mcp.tool()
 def snap_image() -> dict:
     """Capture an image from the microscope at the current stage position."""
-    return scope.snap_image()
+    return get_scope().snap_image()
 
 
 @mcp.tool()
 def move_stage(x: float, y: float, z: float) -> dict:
     """Move the microscope stage to the given (x, y, z) coordinates in µm."""
-    return scope.move_stage(x, y, z)
+    return get_scope().move_stage(x, y, z)
 
 
 @mcp.tool()
 def get_stage_position() -> dict:
     """Return the current stage position as {x, y, z}."""
-    return scope.get_stage_position()
+    return get_scope().get_stage_position()
 
 
 @mcp.tool()
 def wait(seconds: float) -> dict:
     """Pause execution for the given number of seconds."""
-    return scope.wait(seconds)
+    return get_scope().wait(seconds)
 
 
 # --- Resources ---
@@ -53,7 +64,7 @@ def wait(seconds: float) -> dict:
 @mcp.resource("microscope://latest_image", mime_type="image/png")
 def latest_image() -> bytes:
     """The most recently captured image as a PNG."""
-    return scope.get_image_png()
+    return get_scope().get_image_png()
 
 
 # --- Prompts ---
@@ -85,8 +96,36 @@ Do not skip any positions. Report progress after each tile.
 """
 
 
-if __name__ == "__main__":
-    import uvicorn
+def main(argv: list[str] | None = None) -> None:
+    """Entry point for the ``start`` console script."""
+    parser = argparse.ArgumentParser(prog="start", description="Start a DReAMS server.")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="server",
+        choices=["server"],
+        help="Serve the microscope MCP server over streamable HTTP.",
+    )
+    parser.add_argument(
+        "--no-scope",
+        action="store_true",
+        help=(
+            "Start even if the microscope is unavailable (missing 'dreams' "
+            "package or no Micro-Manager); tools error when called."
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    if args.no_scope:
+        print("Starting without a microscope - tools will fail when called.")
+    else:
+        try:
+            get_scope()
+        except Exception as exc:
+            raise SystemExit(
+                f"Cannot reach the microscope: {exc}\n"
+                "Re-run with --no-scope to start the server anyway."
+            ) from exc
 
     uvicorn.run(
         mcp.streamable_http_app(),
@@ -94,3 +133,7 @@ if __name__ == "__main__":
         port=PORT,
         timeout_graceful_shutdown=0,
     )
+
+
+if __name__ == "__main__":
+    main()
