@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 start = "servers.microscope.server:main"
+ftp = "servers.ftp.server:main"
 
 [build-system]
 requires = ["hatchling"]

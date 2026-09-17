@@ -86,11 +86,7 @@ Settings come from the environment (or `.env`), defaults shown:
 | `FTP_USER` / `FTP_PASSWORD` | — | required |
 | `FTP_HOST` | `ftp.microscopy.wisc.edu` | |
 | `FTP_PORT` | `21` | |
-| `FTP_ROOT` | `/` | relative paths resolve here |
-| `FTP_TLS` | `1` | explicit FTPS (`AUTH TLS`), data channel encrypted |
-| `FTP_PASSIVE` | `1` | |
-| `FTP_TIMEOUT` | `30` | seconds |
-
+| `FTP_ROOT` | `/data/dreams` | relative paths resolve here |
 `ftp.microscopy.wisc.edu` supports `AUTH TLS`, so credentials and data stay
 encrypted by default; set `FTP_TLS=0` only for a server that cannot do FTPS.
 
