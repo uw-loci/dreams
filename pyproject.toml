@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-start = "servers.microscope.server:main"
+start-server = "servers.microscope.server:main"
 ftp = "servers.ftp.server:main"
 
 [build-system]
