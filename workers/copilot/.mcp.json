@@ -3,7 +3,16 @@
     "microscope": {
       "type": "http",
       "url": "http://127.0.0.1:4201/mcp",
-      "tools": ["*"]
+      "tools": [
+        "*"
+      ]
+    },
+    "ftp-datasets": {
+      "type": "http",
+      "url": "http://127.0.0.1:4202/mcp",
+      "tools": [
+        "*"
+      ]
     }
   }
 }
