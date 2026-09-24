@@ -8,6 +8,7 @@ from PIL import Image
 from pycromanager import Core
 
 from .common import array_to_png_bytes, normalise_to_uint8
+from .image_adapter import CurrentCameraImageAdapter
 
 
 class RealMicroscope:
@@ -17,6 +18,7 @@ class RealMicroscope:
         self.core = Core()
         self._image_counter = 0
         self._last_pixels: np.ndarray | None = None
+        self._image_adapter = CurrentCameraImageAdapter()
         self.position = {"x": 0.0, "y": 0.0, "z": 0.0}
 
         loaded_devices = self._java_list_to_python(self.core.get_loaded_devices())
@@ -67,7 +69,10 @@ class RealMicroscope:
             tempfile.gettempdir(),
             f"scope_real_{self._image_counter:04d}.png",
         )
-        Image.fromarray(normalise_to_uint8(pixels)).save(path)
+        display_pixels = self._image_adapter.to_display_pixels(
+            normalise_to_uint8(pixels)
+        )
+        Image.fromarray(display_pixels).save(path)
 
         return {
             "status": "ok",
@@ -86,7 +91,10 @@ class RealMicroscope:
         """Return the last captured image as raw PNG bytes."""
         if self._last_pixels is None:
             raise RuntimeError("No image captured yet — call snap_image() first.")
-        return array_to_png_bytes(normalise_to_uint8(self._last_pixels))
+        display_pixels = self._image_adapter.to_display_pixels(
+            normalise_to_uint8(self._last_pixels)
+        )
+        return array_to_png_bytes(display_pixels)
 
     def wait(self, seconds: float) -> dict:
         time.sleep(seconds)
